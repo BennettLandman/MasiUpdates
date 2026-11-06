@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Generated Reports & Data
+*.xlsx
+*.docx
+lastupdated.txt
+
+# Operating System
+.DS_Store
+Thumbs.db
