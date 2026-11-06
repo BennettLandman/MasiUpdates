@@ -9,6 +9,7 @@ ENV/
 # Generated Reports & Data
 *.xlsx
 *.docx
+!template.docx
 lastupdated.txt
 
 # Operating System

@@ -223,247 +223,81 @@ def read_entries_from_rows(rows: list) -> tuple:
 def create_word_report(
     entries: list,
     output_docx: str,
-    date_str: str = None,
-    header_col1: str = "Email Address",
-    header_col2: str = "Status Update - Provide plain text (no jargon) what is going on with your projects. Do have a success to share? Do you have problem that you would like to discuss? Are you waiting for anything? "
+    date_obj: datetime.date = None,
+    template_path: str = None
 ):
     """
-    Generate the Microsoft Word (.docx) report with:
-    - Current date in header and title
-    - Alternating row background colors
-    - Formatted bullet points for Column C
-    - Universal OpenXML WordprocessingML (pure standard library)
+    Generate the Microsoft Word (.docx) report matching the exact fonts (Arial),
+    table colors (GridTable4), margins (0.5 in), line spacing, and header format
+    from the example document.
     """
-    if not date_str:
-        date_str = datetime.date.today().strftime("%Y.%m.%d")
+    if date_obj is None:
+        date_obj = datetime.date.today()
 
-    # Build Table XML
-    table_xml_parts = [f"""
-    <w:tbl>
-      <w:tblPr>
-        <w:tblW w:w="9360" w:type="dxa"/>
-        <w:tblBorders>
-          <w:top w:val="single" w:sz="6" w:space="0" w:color="D3D3D3"/>
-          <w:left w:val="single" w:sz="6" w:space="0" w:color="D3D3D3"/>
-          <w:bottom w:val="single" w:sz="6" w:space="0" w:color="D3D3D3"/>
-          <w:right w:val="single" w:sz="6" w:space="0" w:color="D3D3D3"/>
-          <w:insideH w:val="single" w:sz="4" w:space="0" w:color="E0E0E0"/>
-          <w:insideV w:val="single" w:sz="4" w:space="0" w:color="E0E0E0"/>
-        </w:tblBorders>
-        <w:tblCellMar>
-          <w:top w:w="120" w:type="dxa"/>
-          <w:left w:w="160" w:type="dxa"/>
-          <w:bottom w:w="120" w:type="dxa"/>
-          <w:right w:w="160" w:type="dxa"/>
-        </w:tblCellMar>
-      </w:tblPr>
-      <w:tblGrid>
-        <w:gridCol w:w="2400"/>
-        <w:gridCol w:w="6960"/>
-      </w:tblGrid>
-      <!-- Header Row -->
-      <w:tr>
-        <w:trPr>
-          <w:tblHeader/>
-        </w:trPr>
-        <w:tc>
-          <w:tcPr>
-            <w:tcW w:w="2400" w:type="dxa"/>
-            <w:shd w:val="clear" w:color="auto" w:fill="D9E1F2"/>
-            <w:vAlign w:val="center"/>
-          </w:tcPr>
-          <w:p>
-            <w:pPr>
-              <w:spacing w:before="60" w:after="60"/>
-            </w:pPr>
-            <w:r>
-              <w:rPr><w:b/><w:sz w:val="21"/></w:rPr>
-              <w:t>{escape_xml(header_col1)}</w:t>
-            </w:r>
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr>
-            <w:tcW w:w="6960" w:type="dxa"/>
-            <w:shd w:val="clear" w:color="auto" w:fill="D9E1F2"/>
-            <w:vAlign w:val="center"/>
-          </w:tcPr>
-          <w:p>
-            <w:pPr>
-              <w:spacing w:before="60" w:after="60"/>
-            </w:pPr>
-            <w:r>
-              <w:rPr><w:b/><w:sz w:val="21"/></w:rPr>
-              <w:t>{escape_xml(header_col2)}</w:t>
-            </w:r>
-          </w:p>
-        </w:tc>
-      </w:tr>
-    """]
+    # Formatted date for header: e.g. "Friday, November 6, 2026"
+    date_text = date_obj.strftime("%A, %B ") + str(date_obj.day) + date_obj.strftime(", %Y")
 
-    # Build data rows with alternating colors and bullets
+    # Header XML with bottom border, date, tabs, and page number field
+    header_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="auto"/></w:pBdr><w:tabs><w:tab w:val="left" w:pos="3100"/><w:tab w:val="right" w:pos="10800"/></w:tabs><w:rPr><w:b/><w:bCs/></w:rPr></w:pPr><w:r><w:rPr><w:b/><w:bCs/></w:rPr><w:t>{escape_xml(date_text)}</w:t></w:r><w:r><w:rPr><w:b/><w:bCs/></w:rPr><w:tab/></w:r><w:r><w:rPr><w:b/><w:bCs/></w:rPr><w:tab/></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/><w:b/><w:bCs/></w:rPr><w:t xml:space="preserve">- </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/><w:b/><w:bCs/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/><w:b/><w:bCs/></w:rPr><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/><w:b/><w:bCs/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/><w:b/><w:bCs/><w:noProof/></w:rPr><w:t>1</w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/><w:b/><w:bCs/></w:rPr><w:fldChar w:fldCharType="end"/></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/><w:b/><w:bCs/></w:rPr><w:t xml:space="preserve"> </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/><w:b/><w:bCs/></w:rPr><w:t>–</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Header"/></w:pPr></w:p></w:hdr>"""
+
+    # Build Table 0 (Header Row Table) exactly as formatted in the example docx
+    tbl0_xml = """<w:tbl><w:tblPr><w:tblStyle w:val="GridTable4"/><w:tblW w:w="10792" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr><w:tblGrid><w:gridCol w:w="1255"/><w:gridCol w:w="9537"/></w:tblGrid><w:tr><w:trPr><w:cnfStyle w:val="100000000000" w:firstRow="1" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:oddVBand="0" w:evenVBand="0" w:oddHBand="0" w:evenHBand="0" w:firstRowFirstColumn="0" w:firstRowLastColumn="0" w:lastRowFirstColumn="0" w:lastRowLastColumn="0"/><w:trHeight w:val="315"/></w:trPr><w:tc><w:tcPr><w:cnfStyle w:val="001000000000" w:firstRow="0" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:oddVBand="0" w:evenVBand="0" w:oddHBand="0" w:evenHBand="0" w:firstRowFirstColumn="0" w:firstRowLastColumn="0" w:lastRowFirstColumn="0" w:lastRowLastColumn="0"/><w:tcW w:w="1255" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:snapToGrid w:val="0"/><w:spacing w:line="276" w:lineRule="auto"/><w:contextualSpacing/><w:rPr><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:eastAsia="Times New Roman" w:hAnsi="Arial" w:cs="Arial"/><w:kern w:val="0"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Email Address</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w="9537" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:snapToGrid w:val="0"/><w:spacing w:line="276" w:lineRule="auto"/><w:contextualSpacing/><w:cnfStyle w:val="100000000000" w:firstRow="1" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:oddVBand="0" w:evenVBand="0" w:oddHBand="0" w:evenHBand="0" w:firstRowFirstColumn="0" w:firstRowLastColumn="0" w:lastRowFirstColumn="0" w:lastRowLastColumn="0"/><w:rPr><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:eastAsia="Times New Roman" w:hAnsi="Arial" w:cs="Arial"/><w:kern w:val="0"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Status Update - Provide plain text (no jargon) what is going on with your projects. Do have a success to share? Do you have problem that you would like to discuss? Are you waiting for anything? </w:t></w:r></w:p></w:tc></w:tr></w:tbl>"""
+
+    # Build Table 1 (Data Table) with alternating row formatting and bullet lists
+    t1_rows = []
     for idx, entry in enumerate(entries):
-        # Alternating background: White (#FFFFFF) and Light Slate (#F2F4F8)
-        bg_color = "FFFFFF" if idx % 2 == 0 else "F2F4F8"
         name_escaped = escape_xml(entry["name"])
+        is_odd_band = (idx % 2 == 0)  # Alternating row band (cnfStyle oddHBand)
+        cnf_tr = "000000100000" if is_odd_band else "000000000000"
+        cnf_tc_col0 = "001000000000"
+        cnf_p_col1 = "000000100000" if is_odd_band else "000000000000"
 
-        bullets_xml = []
+        bullets_p_xml = []
         for bullet in entry["bullets"]:
             bullet_escaped = escape_xml(bullet)
-            bullets_xml.append(f"""
-          <w:p>
-            <w:pPr>
-              <w:ind w:left="280" w:hanging="200"/>
-              <w:spacing w:before="30" w:after="40" w:line="240" w:lineRule="auto"/>
-            </w:pPr>
-            <w:r>
-              <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="20"/><w:color w:val="1F497D"/></w:rPr>
-              <w:t xml:space="preserve">&#x2022;  </w:t>
-            </w:r>
-            <w:r>
-              <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="20"/></w:rPr>
-              <w:t xml:space="preserve">{bullet_escaped}</w:t>
-            </w:r>
-          </w:p>""")
+            p_xml = f"""<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="21"/></w:numPr><w:cnfStyle w:val="{cnf_p_col1}" w:firstRow="0" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:oddVBand="0" w:evenVBand="0" w:oddHBand="{1 if is_odd_band else 0}" w:evenHBand="0" w:firstRowFirstColumn="0" w:firstRowLastColumn="0" w:lastRowFirstColumn="0" w:lastRowLastColumn="0"/><w:rPr><w:rFonts w:ascii="Arial" w:eastAsia="Times New Roman" w:hAnsi="Arial" w:cs="Arial"/><w:kern w:val="0"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:eastAsia="Times New Roman" w:hAnsi="Arial" w:cs="Arial"/><w:kern w:val="0"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr><w:t xml:space="preserve">{bullet_escaped}</w:t></w:r></w:p>"""
+            bullets_p_xml.append(p_xml)
 
-        row_xml = f"""
-      <w:tr>
-        <w:tc>
-          <w:tcPr>
-            <w:tcW w:w="2400" w:type="dxa"/>
-            <w:shd w:val="clear" w:color="auto" w:fill="{bg_color}"/>
-            <w:vAlign w:val="top"/>
-          </w:tcPr>
-          <w:p>
-            <w:pPr><w:spacing w:before="40" w:after="40"/></w:pPr>
-            <w:r>
-              <w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="2B2D42"/></w:rPr>
-              <w:t>{name_escaped}</w:t>
-            </w:r>
-          </w:p>
-        </w:tc>
-        <w:tc>
-          <w:tcPr>
-            <w:tcW w:w="6960" w:type="dxa"/>
-            <w:shd w:val="clear" w:color="auto" w:fill="{bg_color}"/>
-            <w:vAlign w:val="top"/>
-          </w:tcPr>
-          {"".join(bullets_xml)}
-        </w:tc>
-      </w:tr>
-        """
-        table_xml_parts.append(row_xml)
+        tr_xml = f"""<w:tr><w:trPr><w:cnfStyle w:val="{cnf_tr}" w:firstRow="0" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:oddVBand="0" w:evenVBand="0" w:oddHBand="{1 if is_odd_band else 0}" w:evenHBand="0" w:firstRowFirstColumn="0" w:firstRowLastColumn="0" w:lastRowFirstColumn="0" w:lastRowLastColumn="0"/><w:trHeight w:val="315"/></w:trPr><w:tc><w:tcPr><w:cnfStyle w:val="{cnf_tc_col0}" w:firstRow="0" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:oddVBand="0" w:evenVBand="0" w:oddHBand="0" w:evenHBand="0" w:firstRowFirstColumn="0" w:firstRowLastColumn="0" w:lastRowFirstColumn="0" w:lastRowLastColumn="0"/><w:tcW w:w="0" w:type="auto"/><w:hideMark/></w:tcPr><w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:eastAsia="Times New Roman" w:hAnsi="Arial" w:cs="Arial"/><w:kern w:val="0"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:eastAsia="Times New Roman" w:hAnsi="Arial" w:cs="Arial"/><w:kern w:val="0"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr><w:t>{name_escaped}</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w="0" w:type="auto"/><w:hideMark/></w:tcPr>{"".join(bullets_p_xml)}</w:tc></w:tr>"""
+        t1_rows.append(tr_xml)
 
-    table_xml_parts.append("</w:tbl>")
-    table_xml = "".join(table_xml_parts)
+    table1_xml = f"""<w:tbl><w:tblPr><w:tblStyle w:val="GridTable4"/><w:tblW w:w="10792" w:type="dxa"/><w:tblLook w:val="0480" w:firstRow="0" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr><w:tblGrid><w:gridCol w:w="2646"/><w:gridCol w:w="8146"/></w:tblGrid>{"".join(t1_rows)}</w:tbl>"""
 
-    content_types = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
-  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
-</Types>"""
+    # Section properties with 0.5 inch margins (720 dxa)
+    sectPr_xml = """<w:sectPr><w:headerReference w:type="default" r:id="rId7"/><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="720" w:footer="720" w:gutter="0"/><w:cols w:space="720"/><w:docGrid w:linePitch="360"/></w:sectPr>"""
 
-    root_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>"""
-
-    doc_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
-</Relationships>"""
-
-    styles_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:docDefaults>
-    <w:rPrDefault>
-      <w:rPr>
-        <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>
-        <w:sz w:val="21"/>
-        <w:szCs w:val="21"/>
-        <w:lang w:val="en-US"/>
-      </w:rPr>
-    </w:rDefault>
-    <w:pPrDefault>
-      <w:pPr>
-        <w:spacing w:after="80" w:line="240" w:lineRule="auto"/>
-      </w:pPr>
-    </w:pPrDefault>
-  </w:docDefaults>
-</w:styles>"""
-
-    # Header with current date
-    header_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:p>
-    <w:pPr>
-      <w:jc w:val="right"/>
-      <w:spacing w:after="0"/>
-    </w:pPr>
-    <w:r>
-      <w:rPr>
-        <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
-        <w:sz w:val="18"/>
-        <w:color w:val="708090"/>
-      </w:rPr>
-      <w:t>Status Report — {date_str}</w:t>
-    </w:r>
-  </w:p>
-</w:hdr>"""
-
-    # Document body
-    document_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    new_doc_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <w:body>
-    <w:p>
-      <w:pPr>
-        <w:jc w:val="left"/>
-        <w:spacing w:before="0" w:after="100"/>
-      </w:pPr>
-      <w:r>
-        <w:rPr>
-          <w:b/>
-          <w:sz w:val="34"/>
-          <w:color w:val="1F497D"/>
-        </w:rPr>
-        <w:t>Project Status Report</w:t>
-      </w:r>
-    </w:p>
-    <w:p>
-      <w:pPr>
-        <w:spacing w:before="0" w:after="240"/>
-      </w:pPr>
-      <w:r>
-        <w:rPr>
-          <w:i/>
-          <w:sz w:val="20"/>
-          <w:color w:val="595959"/>
-        </w:rPr>
-        <w:t>Date: {date_str}</w:t>
-      </w:r>
-    </w:p>
-
-    {table_xml}
-
-    <w:sectPr>
-      <w:headerReference w:type="default" r:id="rId2"/>
-      <w:pgSz w:w="12240" w:h="15840"/>
-      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/>
-    </w:sectPr>
+    {tbl0_xml}
+    {table1_xml}
+    <w:p><w:pPr><w:snapToGrid w:val="0"/><w:contextualSpacing/><w:rPr><w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr></w:pPr></w:p>
+    {sectPr_xml}
   </w:body>
 </w:document>"""
 
-    with zipfile.ZipFile(output_docx, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("[Content_Types].xml", content_types)
-        zf.writestr("_rels/.rels", root_rels)
-        zf.writestr("word/_rels/document.xml.rels", doc_rels)
-        zf.writestr("word/styles.xml", styles_xml)
-        zf.writestr("word/header1.xml", header_xml)
-        zf.writestr("word/document.xml", document_xml)
+    # Look for template.docx in same folder as script if not specified
+    if not template_path:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        candidate = os.path.join(script_dir, "template.docx")
+        if os.path.exists(candidate):
+            template_path = candidate
+
+    if template_path and os.path.exists(template_path):
+        with zipfile.ZipFile(template_path, "r") as z_in, zipfile.ZipFile(output_docx, "w", zipfile.ZIP_DEFLATED) as z_out:
+            for item in z_in.infolist():
+                if item.filename == "word/document.xml":
+                    z_out.writestr(item.filename, new_doc_xml.encode("utf-8"))
+                elif item.filename == "word/header1.xml":
+                    z_out.writestr(item.filename, header_xml.encode("utf-8"))
+                else:
+                    z_out.writestr(item.filename, z_in.read(item.filename))
+    else:
+        # Standalone generation if template not available
+        with zipfile.ZipFile(output_docx, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("word/document.xml", new_doc_xml.encode("utf-8"))
+            zf.writestr("word/header1.xml", header_xml.encode("utf-8"))
 
 
 def main():
@@ -529,7 +363,7 @@ def main():
 
     # Step 4: Generate Word document
     print(f"[3/4] Generating Word report: {output_docx} ...")
-    create_word_report(entries, output_docx, date_str=today_str)
+    create_word_report(entries, output_docx, date_obj=datetime.date.today())
     print(f"[4/4] ✓ Successfully created Word report at: {os.path.abspath(output_docx)}")
 
 
