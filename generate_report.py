@@ -178,10 +178,64 @@ def download_first_sheet(url_or_id: str, output_xlsx: str = None) -> tuple:
     return reader, output_xlsx
 
 
-def read_entries_from_rows(rows: list) -> tuple:
+def parse_timestamp(ts_str: str):
+    """Parse various timestamp string formats into a datetime object."""
+    if not ts_str or not str(ts_str).strip():
+        return None
+    ts_str = str(ts_str).strip()
+    formats = [
+        "%m/%d/%Y %H:%M:%S",
+        "%m/%d/%Y %I:%M:%S %p",
+        "%m/%d/%Y %H:%M",
+        "%m/%d/%Y %I:%M %p",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y/%m/%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S",
+    ]
+    for fmt in formats:
+        try:
+            return datetime.datetime.strptime(ts_str, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def is_after_timestamp(entry_ts_str: str, cutoff_ts_str: str, cutoff_dt: datetime.datetime = None) -> bool:
+    """Return True if entry timestamp is strictly after the cutoff timestamp."""
+    if not cutoff_ts_str:
+        return True
+    if not entry_ts_str:
+        return False
+
+    entry_dt = parse_timestamp(entry_ts_str)
+    if entry_dt is not None and cutoff_dt is not None:
+        return entry_dt > cutoff_dt
+
+    return entry_ts_str.strip() > cutoff_ts_str.strip()
+
+
+def resolve_output_path(target_path: str) -> str:
+    """
+    Resolve filename collision by appending _v<num> starting at 2.
+    If target_path does not exist, returns target_path as-is.
+    If target_path exists, tries _v2, _v3, etc. until an unused path is found.
+    """
+    if not os.path.exists(target_path):
+        return target_path
+
+    base, ext = os.path.splitext(target_path)
+    v_num = 2
+    while True:
+        candidate = f"{base}_v{v_num}{ext}"
+        if not os.path.exists(candidate):
+            return candidate
+        v_num += 1
+
+
+def read_entries_from_rows(rows: list, cutoff_timestamp: str = None) -> tuple:
     """
     Extract and process Columns A, B, and C from table rows:
-    - Column A: Timestamp of submission.
+    - If cutoff_timestamp is provided, only include entries with timestamps after that cutoff.
     - Column B: Strip '@domain' to leave only the name.
     - Column C: Remove manual line breaks and format lines as bullet points.
     - Sort rows alphabetically by the name in Column B.
@@ -189,6 +243,7 @@ def read_entries_from_rows(rows: list) -> tuple:
     """
     entries = []
     last_timestamp = None
+    cutoff_dt = parse_timestamp(cutoff_timestamp) if cutoff_timestamp else None
 
     # Skip header row (rows[0])
     for row in rows[1:]:
@@ -197,6 +252,10 @@ def read_entries_from_rows(rows: list) -> tuple:
         timestamp = row[0].strip() if len(row) > 0 else ""
         email = row[1].strip()
         status_text = row[2]
+
+        # Filter by cutoff timestamp if specified
+        if cutoff_timestamp and not is_after_timestamp(timestamp, cutoff_timestamp, cutoff_dt):
+            continue
 
         # Strip @domain from email to leave only the username/name
         name = email.split("@")[0].strip()
@@ -394,6 +453,11 @@ def main():
         default="lastupdated.txt",
         help="Path to save the timestamp of the last entry (default: lastupdated.txt)"
     )
+    parser.add_argument(
+        "--ignore-last-updated",
+        action="store_true",
+        help="Ignore lastupdated.txt and include all entries from the sheet"
+    )
 
     args = parser.parse_args()
 
@@ -414,25 +478,44 @@ def main():
     else:
         rows, saved_xlsx = download_first_sheet(args.url)
 
+    # Check for previous update timestamp in lastupdated.txt
+    cutoff_timestamp = None
+    if os.path.exists(args.last_updated_file) and not args.ignore_last_updated:
+        try:
+            with open(args.last_updated_file, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if content:
+                    cutoff_timestamp = content
+                    print(f"      Filtering for entries after last update: {cutoff_timestamp}")
+        except Exception as e:
+            print(f"      Warning reading {args.last_updated_file}: {e}")
+
     # Step 2: Extract, clean, bulletize and sort entries
     print("[2/4] Processing Columns B & C (cleaning usernames, formatting bullets, sorting)...")
-    entries, last_timestamp = read_entries_from_rows(rows)
+    entries, last_timestamp = read_entries_from_rows(rows, cutoff_timestamp=cutoff_timestamp)
     print(f"      Processed and sorted {len(entries)} entries alphabetically.")
 
-    # Save last entry timestamp to lastupdated.txt
-    if last_timestamp:
-        with open(args.last_updated_file, "w", encoding="utf-8") as f:
-            f.write(f"{last_timestamp}\n")
-        print(f"      Saved last entry timestamp ('{last_timestamp}') to: {args.last_updated_file}")
+    if not entries:
+        print(f"[!] No new entries found with timestamps after '{cutoff_timestamp}'. No report generated.")
+        return
 
-    # Step 3: Determine output document name
+    # Step 3: Determine output document name (avoid collision with _v2, _v3, ...)
     today_str = datetime.date.today().strftime("%Y.%m.%d")
-    output_docx = args.output if args.output else f"{today_str}.docx"
+    target_docx = args.output if args.output else f"{today_str}.docx"
+    output_docx = resolve_output_path(target_docx)
+    if output_docx != target_docx:
+        print(f"      Notice: '{target_docx}' already exists. Using '{output_docx}' to prevent overwriting.")
 
     # Step 4: Generate Word document
     print(f"[3/4] Generating Word report: {output_docx} ...")
     create_word_report(entries, output_docx, date_obj=datetime.date.today())
     print(f"[4/4] ✓ Successfully created Word report at: {os.path.abspath(output_docx)}")
+
+    # Update last entry timestamp to lastupdated.txt
+    if last_timestamp:
+        with open(args.last_updated_file, "w", encoding="utf-8") as f:
+            f.write(f"{last_timestamp}\n")
+        print(f"      Saved last entry timestamp ('{last_timestamp}') to: {args.last_updated_file}")
 
 
 if __name__ == "__main__":
